@@ -11,6 +11,9 @@ class main():
         self.geometry = "300x150"
         self.start_hotkey = "alt+q"
         self.point_hotkey = "alt+left"
+        self.reset_hotkey = "alt+right"
+        self.reset_requested = False
+        self.is_measuring = False
 
     
     def create_static_window(self):
@@ -29,53 +32,60 @@ class main():
             nonlocal pos
             if isinstance(event, mouse.ButtonEvent) and event.event_type == 'down' and event.button == 'left' and keyboard.is_pressed(self.point_hotkey.split('+')[0]):
                 pos = pyautogui.position()
-                mouse.unhook(on_click)
-
         mouse.hook(on_click)
 
-        # **等待用户点击**
-        while pos is None:
-            time.sleep(0.1)  # 防止 CPU 过载
+        try:
+            # 等待用户点击
+            while pos is None:
+                if self.reset_requested:
+                    return None
+                time.sleep(0.05)  # 防止 CPU 过载，同时提高重置响应速度
+            return pos
+        finally:
+            mouse.unhook(on_click)
 
-        return pos
-    
-    def start_measurement(self):
-        window, label = self.create_static_window()
-        
+    def request_reset(self):
+        if self.is_measuring:
+            self.reset_requested = True
+
+    def _get_step_point(self, window, label, text):
+        label.config(text=text)
+        window.update()
+        return self.get_point()
+
+    def _run_measurement_once(self, window, label):
         calculator = calc.calculator()
 
         # get point1 and point2 for scale factor
-        label.config(text=f"Set 100 meters: First point")
-        window.update()
-        point1 = self.get_point()
+        point1 = self._get_step_point(window, label, "Set 100 meters: First point")
+        if point1 is None:
+            return None
 
-        label.config(text=f"Set 100 meters: Second point")
-        window.update()
-        point2 = self.get_point()
+        point2 = self._get_step_point(window, label, "Set 100 meters: Second point")
+        if point2 is None:
+            return None
 
         # calculate scale factor
         calculator.set_scale_factor(point1, point2)
 
         # get point1 and point2 for distance
-        label.config(text=f"Measurement: First point")
-        window.update()
-        point1 = self.get_point()
+        point1 = self._get_step_point(window, label, "Measurement: First point")
+        if point1 is None:
+            return None
 
-        label.config(text=f"Measurement: Second point")
-        window.update()
-        point2 = self.get_point()
+        point2 = self._get_step_point(window, label, "Measurement: Second point")
+        if point2 is None:
+            return None
 
         # calculate horizontal distance
         calculator.get_horizontal_distance(point1, point2)
-        
         label.config(text=f"MAX Distance: {calculator.horizontal_distance:.2f} m")
         window.update()
-        # time.sleep(1)
 
         # get elevation angle point
-        label.config(text=f"Elevation angle: Only one point")
-        point = self.get_point()
-        window.update()
+        point = self._get_step_point(window, label, "Elevation angle: Only one point")
+        if point is None:
+            return None
 
         # calculate elevation angle
         label.config(text=f"Evelation angle: {calculator.get_evelation_angle(point):.2f} degrees")
@@ -85,14 +95,38 @@ class main():
         label.config(text=f"Distance: {calculator.solve(calculator.evelation_angle, calculator.horizontal_distance):.2f} m")
         window.update()
 
-        time.sleep(3)
+        return calculator.result
+    
+    def start_measurement(self):
+        if self.is_measuring:
+            return
 
-        window.destroy()
+        self.is_measuring = True
+        window, label = self.create_static_window()
+
+        try:
+            while True:
+                self.reset_requested = False
+                result = self._run_measurement_once(window, label)
+
+                if result is None:
+                    label.config(text="Reset detected. Restarting...")
+                    window.update()
+                    time.sleep(0.2)
+                    continue
+
+                time.sleep(3)
+                break
+        finally:
+            self.reset_requested = False
+            self.is_measuring = False
+            window.destroy()
 
     def main(self):
         # register hotkeys
         keyboard.add_hotkey(self.start_hotkey, self.start_measurement)
         keyboard.add_hotkey(self.point_hotkey, self.get_point)
+        keyboard.add_hotkey(self.reset_hotkey, self.request_reset)
 
         # create UI
         root = tk.Tk()
@@ -105,6 +139,7 @@ class main():
             "Control:\n"
             "Alt + Q: Start measurement\n"
             "Alt + Left: Set point\n\n"
+            "Alt + Right: Reset measurement\n\n"
         )
 
         message_label = tk.Label(root, text=info_text, font=("Console", 12), justify="left")
