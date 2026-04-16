@@ -105,19 +105,6 @@ R = \frac{L + tan{\beta}(M - \sqrt{M^2 - 2LM\tan{\beta} - L^2})}{\tan^2{\beta} +
 pyinstaller --onefile --windowed --name "MortarAid" --icon=img/icon.ico .\main.py
 ```
 
-推荐使用自动化脚本（会先写入 `CHANGELOG.md` 再打包）:
-
-```powershell
-./scripts/release.ps1 -Added "新增功能A|新增功能B" -Fixed "修复问题A" -Optimized "优化点A" -Files "main.py|mortar_tools/calculator.py"
-```
-
-参数说明:
-
-- `-Added` 新增项，多个内容用 `|` 分隔
-- `-Fixed` 修复项，多个内容用 `|` 分隔
-- `-Optimized` 优化项，多个内容用 `|` 分隔
-- `-Files` 影响文件，多个文件用 `|` 分隔
-
 或者直接下载 `release`
 
 ---
