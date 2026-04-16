@@ -1,13 +1,13 @@
 import tkinter as tk
 import tkinter.font as tkfont
-import json
-import os
-import sys
 import pyautogui
 import time
 import mouse
 import keyboard
 import mortar_tools.calculator as calc
+from mortar_tools.hotkey_state import HotkeyStateMachine
+from mortar_tools.i18n_texts import I18N_TEXTS
+from mortar_tools.settings_store import AppSettings, load_settings, resolve_settings_path, save_settings
 
 class main():
     def __init__(self):
@@ -23,16 +23,12 @@ class main():
         self.reset_requested = False
         self.is_measuring = False
         self.exit_signal = object()
-        self.modifier_is_down = False
-        self.alt_is_down = False
-        self.q_is_down = False
-        self.alt_down_at = 0.0
-        self.q_down_at = 0.0
-        self.exit_combo_count = 0
-        self.exit_combo_deadline = 0.0
-        self.start_hotkey_latched = False
         self.start_requested = False
         self.language = "en"
+        self.hotkey_state = HotkeyStateMachine(
+            start_combo_max_interval=self.start_combo_max_interval,
+            exit_combo_guard_seconds=self.exit_combo_guard_seconds,
+        )
         self.root = None
         self.current_page = "home"
         self.content_frame = None
@@ -41,104 +37,24 @@ class main():
         self.message_label = None
         self.language_var = None
         self.start_interval_var = None
-        self.settings_path = self.get_settings_path()
+        self.settings_path = resolve_settings_path()
+        self.i18n = I18N_TEXTS
 
-        self.i18n = {
-            "en": {
-                "window_title": "Mortar Distance Measurement Tool",
-                "menu_settings": "Settings",
-                "menu_home": "Home",
-                "menu_language": "Language",
-                "menu_lang_en": "English",
-                "menu_lang_zh": "Chinese",
-                "menu_trigger_window": "Start Trigger Window",
-                "menu_trigger_window_value": "{value:.1f}s",
-                "settings_title": "Settings",
-                "settings_hint": "If your Alt key is bound to other keys and easily triggers distance measurement with Q, you can reduce the interval to 0.3s; if Alt+Q is hard to trigger, you can increase it to 0.8s.",
-                "settings_back": "Back to Home",
-                "control_title": "Control:",
-                "control_start": "Alt + Q: Start measurement",
-                "control_point": "Alt + Left: Set point",
-                "control_reset": "Alt + Right Click: Reset measurement",
-                "step_scale_1": "Set 100 meters: First point",
-                "step_scale_2": "Set 100 meters: Second point",
-                "step_measure_1": "Measurement: First point",
-                "step_measure_2": "Measurement: Second point",
-                "max_distance": "MAX Distance: {value:.2f} m",
-                "step_elevation": "Elevation angle: Only one point",
-                "elevation_value": "Elevation angle: {value:.2f} degrees",
-                "distance_value": "Distance: {value:.2f} m",
-                "reset_restarting": "Reset detected. Restarting...",
-            },
-            "zh": {
-                "window_title": "迫击炮距离测量工具",
-                "menu_settings": "设置",
-                "menu_home": "首页",
-                "menu_language": "语言",
-                "menu_lang_en": "英文",
-                "menu_lang_zh": "中文",
-                "menu_trigger_window": "触发窗口",
-                "menu_trigger_window_value": "{value:.1f}秒",
-                "settings_title": "设置",
-                "settings_hint": "如果你的 Alt 键绑定的其他键，容易和Q误触发测距，可调小触发时机到0.3秒内；如果 Alt+Q 难触发，可调大到0.8秒。",
-                "settings_back": "返回首页",
-                "control_title": "操作说明:",
-                "control_start": "Alt + Q: 开始测距",
-                "control_point": "Alt + 左键: 标点",
-                "control_reset": "Alt + 右键: 重置流程",
-                "step_scale_1": "设置100米比例尺：第一个点",
-                "step_scale_2": "设置100米比例尺：第二个点",
-                "step_measure_1": "测距：第一个点（自己的位置）",
-                "step_measure_2": "测距：第二个点（目标位置）",
-                "max_distance": "最大距离: {value:.2f} 米",
-                "step_elevation": "高低差角度：标记你要打击的目标",
-                "elevation_value": "仰角: {value:.2f} 度",
-                "distance_value": "最终距离: {value:.2f} 米",
-                "reset_restarting": "检测到重置，正在重新开始...",
-            },
-        }
-
-        self.load_settings()
+        settings = load_settings(self.settings_path, self.start_combo_options)
+        if settings.language in self.i18n:
+            self.language = settings.language
+        self.start_combo_max_interval = settings.start_combo_max_interval
+        self.hotkey_state.set_start_combo_max_interval(self.start_combo_max_interval)
         self.title = self.t("window_title")
 
-    def get_settings_path(self):
-        if getattr(sys, "frozen", False):
-            base_dir = os.path.dirname(sys.executable)
-        else:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base_dir, "settings.json")
-
-    def load_settings(self):
-        if not os.path.exists(self.settings_path):
-            return
-
-        try:
-            with open(self.settings_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except (OSError, json.JSONDecodeError):
-            return
-
-        saved_lang = data.get("language")
-        if saved_lang in self.i18n:
-            self.language = saved_lang
-
-        saved_interval = data.get("start_combo_max_interval")
-        if isinstance(saved_interval, (int, float)):
-            for option in self.start_combo_options:
-                if abs(float(saved_interval) - option) < 1e-6:
-                    self.start_combo_max_interval = float(option)
-                    break
-
-    def save_settings(self):
-        data = {
-            "language": self.language,
-            "start_combo_max_interval": self.start_combo_max_interval,
-        }
-        try:
-            with open(self.settings_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        except OSError:
-            pass
+    def persist_settings(self):
+        save_settings(
+            self.settings_path,
+            AppSettings(
+                language=self.language,
+                start_combo_max_interval=self.start_combo_max_interval,
+            ),
+        )
 
     def t(self, key, **kwargs):
         text = self.i18n[self.language][key]
@@ -195,7 +111,7 @@ class main():
             return
         self.language = lang
         self.title = self.t("window_title")
-        self.save_settings()
+        self.persist_settings()
         self.refresh_ui_texts()
 
     def create_menu(self):
@@ -312,7 +228,8 @@ class main():
         if value not in self.start_combo_options:
             return
         self.start_combo_max_interval = value
-        self.save_settings()
+        self.hotkey_state.set_start_combo_max_interval(value)
+        self.persist_settings()
         self.refresh_ui_texts()
 
     def refresh_ui_texts(self):
@@ -362,6 +279,7 @@ class main():
         return "ok"
 
     def get_point(self):
+        # Block until a valid point, reset, or exit signal is received.
         pos = None
 
         def on_click(event):
@@ -369,7 +287,7 @@ class main():
             if not isinstance(event, mouse.ButtonEvent) or event.event_type != 'down':
                 return
 
-            modifier_pressed = self.modifier_is_down or keyboard.is_pressed(self.point_modifier)
+            modifier_pressed = self.hotkey_state.alt_is_down or keyboard.is_pressed(self.point_modifier)
 
             if modifier_pressed and event.button == 'right':
                 self.reset_requested = True
@@ -382,7 +300,7 @@ class main():
         try:
             # 等待用户点击
             while pos is None:
-                if self.consume_exit_request():
+                if self.hotkey_state.consume_exit_request():
                     return self.exit_signal
                 if self.reset_requested:
                     return None
@@ -396,66 +314,24 @@ class main():
         if self.is_measuring:
             self.reset_requested = True
 
-    def try_trigger_start_combo(self):
-        if self.start_hotkey_latched:
-            return
-        if not (self.alt_is_down and self.q_is_down):
-            return
-
-        if abs(self.alt_down_at - self.q_down_at) <= self.start_combo_max_interval:
-            self.start_hotkey_latched = True
-            if self.is_measuring:
-                self.register_exit_combo()
-            else:
-                self.start_requested = True
-
-    def register_exit_combo(self):
-        now = time.monotonic()
-
-        if self.exit_combo_count == 0 or now > self.exit_combo_deadline:
-            self.exit_combo_count = 1
-            self.exit_combo_deadline = now + self.exit_combo_guard_seconds
-            return
-
-        self.exit_combo_count += 1
-
-    def consume_exit_request(self):
-        if self.exit_combo_count == 0:
-            return False
-
-        if time.monotonic() < self.exit_combo_deadline:
-            return False
-
-        should_exit = self.exit_combo_count == 1
-        self.exit_combo_count = 0
-        self.exit_combo_deadline = 0.0
-        return should_exit
-
     def on_alt_press(self, _event):
-        if self.alt_is_down:
-            return
-        self.alt_is_down = True
-        self.modifier_is_down = True
-        self.alt_down_at = time.monotonic()
-        self.try_trigger_start_combo()
+        action = self.hotkey_state.on_alt_press(self.is_measuring)
+        if action == "start":
+            self.start_requested = True
 
     def on_alt_release(self, _event):
-        self.alt_is_down = False
-        self.modifier_is_down = False
-        self.start_hotkey_latched = False
+        self.hotkey_state.on_alt_release()
 
     def on_q_press(self, _event):
-        if self.q_is_down:
-            return
-        self.q_is_down = True
-        self.q_down_at = time.monotonic()
-        self.try_trigger_start_combo()
+        action = self.hotkey_state.on_q_press(self.is_measuring)
+        if action == "start":
+            self.start_requested = True
 
     def on_q_release(self, _event):
-        self.q_is_down = False
-        self.start_hotkey_latched = False
+        self.hotkey_state.on_q_release()
 
     def process_pending_actions(self):
+        # Keyboard hooks run outside Tk loop; dispatch start on Tk thread.
         if self.start_requested and not self.is_measuring:
             self.start_requested = False
             self.start_measurement()
@@ -524,10 +400,12 @@ class main():
         return "done"
     
     def start_measurement(self):
+        # Measurement state machine: done -> close, reset -> restart, exit -> close now.
         if self.is_measuring:
             return
 
         self.is_measuring = True
+        self.hotkey_state.enter_measurement()
         window, label = self.create_static_window()
 
         try:
@@ -556,8 +434,7 @@ class main():
         finally:
             self.reset_requested = False
             self.is_measuring = False
-            self.exit_combo_count = 0
-            self.exit_combo_deadline = 0.0
+            self.hotkey_state.reset_exit_window()
             window.destroy()
 
     def main(self):
