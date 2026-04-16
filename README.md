@@ -102,7 +102,13 @@ R = \frac{L + tan{\beta}(M - \sqrt{M^2 - 2LM\tan{\beta} - L^2})}{\tan^2{\beta} +
 ## 使用方法
 
 ```bash
-pyinstaller --onefile --windowed --name "MortarAid" --icon=img/icon.ico .\main.py
+python.exe -m PyInstaller --clean --noconfirm MortarAid.spec
+```
+
+如果使用项目虚拟环境：
+
+```bash
+.\.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm MortarAid.spec
 ```
 
 或者直接下载 `release`
@@ -172,7 +178,8 @@ Alt + Right: 重置标点流程
 
 - 主窗口是“首页/设置页”单窗口切换。
 - 设置页可修改语言和触发窗口。
-- 配置写入 `settings.json`（默认与 `main.py` 同目录）。
+- Windows 下配置写入 `%APPDATA%/MortarAid/settings.json`。
+- 若新路径不存在，会兜底读取旧版根目录 `settings.json`。
 - `settings.json` 建议仅用于本机运行配置，不参与协作合并。
 
 ## 参考文献

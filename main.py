@@ -1,3 +1,6 @@
+# TODO:1在工具栏弄一个教程页 2不同分辨率的适配
+import ctypes
+import sys
 import tkinter as tk
 import tkinter.font as tkfont
 import pyautogui
@@ -39,6 +42,9 @@ class main():
         self.start_interval_var = None
         self.settings_path = resolve_settings_path()
         self.i18n = I18N_TEXTS
+        self.use_windows_key_polling = sys.platform == "win32"
+        self.prev_alt_down = False
+        self.prev_q_down = False
 
         settings = load_settings(self.settings_path, self.start_combo_options)
         if settings.language in self.i18n:
@@ -64,7 +70,7 @@ class main():
 
     def get_ui_font(self):
         if self.language == "zh":
-            return ("Microsoft YaHei UI", 12)
+            return ("Microsoft YaHei UI", 11)
         return ("Consolas", 12)
 
     def fit_window_to_content(self):
@@ -272,7 +278,7 @@ class main():
     def wait_with_ui(self, seconds, interval=0.03, allow_exit=False):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
-            if allow_exit and self.consume_exit_request():
+            if allow_exit and self.hotkey_state.consume_exit_request():
                 return "exit"
             self.pump_main_ui()
             time.sleep(interval)
@@ -287,7 +293,7 @@ class main():
             if not isinstance(event, mouse.ButtonEvent) or event.event_type != 'down':
                 return
 
-            modifier_pressed = self.hotkey_state.alt_is_down or keyboard.is_pressed(self.point_modifier)
+            modifier_pressed = self.is_modifier_pressed()
 
             if modifier_pressed and event.button == 'right':
                 self.reset_requested = True
@@ -310,6 +316,40 @@ class main():
         finally:
             mouse.unhook(on_click)
 
+    def _is_vk_down(self, vk_code):
+        if not self.use_windows_key_polling:
+            return False
+        try:
+            return bool(ctypes.windll.user32.GetAsyncKeyState(vk_code) & 0x8000)
+        except Exception:
+            return False
+
+    def is_modifier_pressed(self):
+        if self.use_windows_key_polling:
+            return self._is_vk_down(0x12)
+        return self.hotkey_state.alt_is_down or keyboard.is_pressed(self.point_modifier)
+
+    def poll_global_hotkeys(self):
+        if self.use_windows_key_polling:
+            alt_down = self._is_vk_down(0x12)
+            q_down = self._is_vk_down(ord("Q"))
+
+            if alt_down and not self.prev_alt_down:
+                self.on_alt_press(None)
+            elif self.prev_alt_down and not alt_down:
+                self.on_alt_release(None)
+
+            if q_down and not self.prev_q_down:
+                self.on_q_press(None)
+            elif self.prev_q_down and not q_down:
+                self.on_q_release(None)
+
+            self.prev_alt_down = alt_down
+            self.prev_q_down = q_down
+
+        if self.root is not None:
+            self.root.after(15, self.poll_global_hotkeys)
+
     def request_reset(self):
         if self.is_measuring:
             self.reset_requested = True
@@ -331,7 +371,7 @@ class main():
         self.hotkey_state.on_q_release()
 
     def process_pending_actions(self):
-        # Keyboard hooks run outside Tk loop; dispatch start on Tk thread.
+        # Keep UI-thread dispatch for start requests from either hook or polling path.
         if self.start_requested and not self.is_measuring:
             self.start_requested = False
             self.start_measurement()
@@ -439,11 +479,15 @@ class main():
 
     def main(self):
         # register hotkeys
-        keyboard.add_hotkey(self.reset_hotkey, self.request_reset)
-        keyboard.on_press_key(self.point_modifier, self.on_alt_press)
-        keyboard.on_release_key(self.point_modifier, self.on_alt_release)
-        keyboard.on_press_key("q", self.on_q_press)
-        keyboard.on_release_key("q", self.on_q_release)
+        if self.use_windows_key_polling:
+            self.prev_alt_down = self._is_vk_down(0x12)
+            self.prev_q_down = self._is_vk_down(ord("Q"))
+        else:
+            keyboard.add_hotkey(self.reset_hotkey, self.request_reset)
+            keyboard.on_press_key(self.point_modifier, self.on_alt_press)
+            keyboard.on_release_key(self.point_modifier, self.on_alt_release)
+            keyboard.on_press_key("q", self.on_q_press)
+            keyboard.on_release_key("q", self.on_q_release)
 
         # create UI
         self.root = tk.Tk()
@@ -455,6 +499,7 @@ class main():
         self.refresh_ui_texts()
         self.show_home_page()
         self.process_pending_actions()
+        self.poll_global_hotkeys()
         self.root.mainloop()
 
 if __name__ == "__main__":
