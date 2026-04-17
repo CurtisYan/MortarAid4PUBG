@@ -101,21 +101,14 @@ R = \frac{L + tan{\beta}(M - \sqrt{M^2 - 2LM\tan{\beta} - L^2})}{\tan^2{\beta} +
 
 * $R$ 用仰角表（数据详情参考[1]）
 
-## 使用方法
+## 使用方法（默认：单文件 EXE）
 
 ```bash
-python.exe -m PyInstaller --clean --noconfirm MortarAid.spec
+python.exe -m PyInstaller --clean --noconfirm --onefile --windowed --uac-admin --name MortarAid --icon img\icon.ico --add-data "img;img" main.py
 ```
+或者直接下载 [<u>release</u>](https://github.com/CurtisYan/MortarAid4PUBG/releases)
 
-如果使用项目虚拟环境：
-
-```bash
-.\.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm MortarAid.spec
-```
-
-或者直接下载 `release`
-
-## 发布
+## 发布备选方案（稳定）
 
 1. 先打包 onedir：
 
