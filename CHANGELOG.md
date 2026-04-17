@@ -14,7 +14,7 @@
 - 先写用户可感知变化，再写内部重构。
 - 必须包含影响文件列表。
 
-## 2026-04-16（日修改）
+## 2026-04-16
 
 #### 新增
 
@@ -53,31 +53,36 @@
 - mortar_tools/hotkey_state.py
 - mortar_tools/settings_store.py
 - mortar_tools/i18n_texts.py
-- scripts/release.ps1（已删除）
 
-## 2026-04-17（日修改）
+## 2026-04-17
 
 #### 新增
 
 - 新增 Windows 全局快捷键轮询方案（Alt/Q），程序不在前台时也可触发测量流程。
 - 新增设置文件路径迁移到 AppData：`%APPDATA%/MortarAid/settings.json`，并保留旧路径读取兜底。
 - 新增 PyInstaller spec 运行库收集逻辑，自动附带 Tk/Conda 常见依赖 DLL。
+- 新增 Zip 分发指引与打包命令（`Compress-Archive`）。
 
 #### 修复
 
 - 修复游戏前台运行时本工具在后台无法识别快捷键的问题。
 - 修复中文设置页在默认窗口尺寸下的文本显示不完整问题（缩小中文 UI 字体）。
 - 修复打包后 `_tkinter` 运行时缺失导致 EXE 启动失败的问题。
+- 修复 onedir 打包场景下帮助页图片路径解析，避免发布版说明页图片丢失。
 
 #### 优化
 
 - 优化设置写入流程：保存前自动创建配置目录，降低首次运行写入失败风险。
 - 优化打包与运行一致性：README 更新为基于 spec 的一键打包方式。
+- 优化发布流程：推荐 onedir + zip 分发，降低下载体积并提升启动稳定性。
+- 优化打包体积：PyInstaller 显式排除常见无用大模块（numpy/pandas/matplotlib/scipy、Qt、Jupyter）。
+- 优化资源打包：帮助页所需图片与图标纳入发布产物。
 
 #### 影响文件
 
 - main.py
 - mortar_tools/settings_store.py
+- mortar_tools/i18n_texts.py
 - MortarAid.spec
 - README.md
 - CHANGELOG.md
@@ -86,7 +91,7 @@
 
 ## 模板（后续追加）
 
-## YYYY-MM-DD（日修改）
+## YYYY-MM-DD
 
 #### 新增
 
