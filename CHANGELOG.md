@@ -62,6 +62,7 @@
 - 新增设置文件路径迁移到 AppData：`%APPDATA%/MortarAid/settings.json`，并保留旧路径读取兜底。
 - 新增 PyInstaller spec 运行库收集逻辑，自动附带 Tk/Conda 常见依赖 DLL。
 - 新增 Zip 分发指引与打包命令（`Compress-Archive`）。
+- 新增英文文档 `README.en.md`，与中文文档形成双向入口。
 
 #### 修复
 
@@ -77,6 +78,8 @@
 - 优化发布流程：推荐 onedir + zip 分发，降低下载体积并提升启动稳定性。
 - 优化打包体积：PyInstaller 显式排除常见无用大模块（numpy/pandas/matplotlib/scipy、Qt、Jupyter）。
 - 优化资源打包：帮助页所需图片与图标纳入发布产物。
+- 优化 README 导航：中文 README 顶部增加英文入口，默认中文为主。
+- 优化 README 运行指引：补充“快捷键无法触发时以管理员身份运行”排障提示。
 
 #### 影响文件
 
@@ -85,6 +88,7 @@
 - mortar_tools/i18n_texts.py
 - MortarAid.spec
 - README.md
+- README.en.md
 - CHANGELOG.md
 
 ---
